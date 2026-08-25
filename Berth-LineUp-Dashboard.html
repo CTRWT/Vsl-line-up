@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Berth Line-Up — Terminal Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EBF0F3; --surface:#FFFFFF; --surface-2:#F5F8FA;
+  --ink:#0F1E2B; --ink-2:#3C5062; --ink-3:#6B7F8E;
+  --navy:#12324A; --line:#D3DCE2; --line-2:#E4EBEF;
+  --load:#0E7C86; --load-bg:#E1F1F1;
+  --disch:#B4531B; --disch-bg:#F7E9DF;
+  --signal:#0E7C86; --amber:#C99A2E;
+  --today:#12324A;
+  --j2:#2C6E9B; --j3:#7A4F9E; --j4:#0E8F6E; --j5:#C0632A; --j8:#B23A5B; --anchorage:#5B6B78;
+  --shadow:0 1px 2px rgba(15,30,43,.06),0 8px 24px -12px rgba(15,30,43,.18);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+/* Header */
+header{background:var(--navy);color:#fff;padding:0;position:sticky;top:0;z-index:50;box-shadow:0 6px 20px -10px rgba(15,30,43,.5)}
+.hwrap{max-width:1320px;margin:0 auto;padding:18px 24px 20px}
+.brandrow{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:13px}
+.mark{width:34px;height:34px;border:1.5px solid rgba(255,255,255,.5);border-radius:7px;display:grid;place-items:center;font-family:"Space Grotesk";font-weight:700;font-size:15px;letter-spacing:.5px;color:#fff}
+.brand h1{font-family:"Space Grotesk";font-weight:600;font-size:17px;letter-spacing:.2px;line-height:1.1}
+.brand .sub{font-size:11px;color:rgba(255,255,255,.62);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+.clock{text-align:right;font-size:12px;color:rgba(255,255,255,.7)}
+.clock .lbl{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:3px}
+.clock .d{font-family:"Space Grotesk";font-weight:500;font-size:15px;color:#fff;letter-spacing:.3px}
+.clock .t{font-family:"IBM Plex Mono";font-size:12px;color:rgba(255,255,255,.72);margin-top:1px}
+.statbar{display:flex;gap:26px;margin-top:16px;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column}
+.stat .n{font-family:"Space Grotesk";font-weight:700;font-size:22px;line-height:1;color:#fff}
+.stat .l{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.58);margin-top:5px}
+.stat .n.tl{color:var(--load)}.stat .n.td{color:#E8935A}
+
+/* Search */
+.searchwrap{max-width:1320px;margin:16px auto 4px;padding:0 24px;position:relative}
+.searchbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);display:flex;align-items:center;padding:4px 6px 4px 16px}
+.searchbox svg{flex:none;color:var(--ink-3)}
+#q{border:0;outline:0;font-family:Inter;font-size:16px;color:var(--ink);padding:14px 12px;width:100%;background:transparent}
+#q::placeholder{color:var(--ink-3)}
+.clearbtn{border:0;background:var(--surface-2);color:var(--ink-2);font-size:13px;padding:9px 14px;border-radius:8px;cursor:pointer;font-family:Inter;font-weight:500}
+.clearbtn:hover{background:var(--line-2)}
+.suggest{position:absolute;left:24px;right:24px;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;z-index:40;display:none}
+.suggest.on{display:block}
+.sg{padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-2)}
+.sg:last-child{border-bottom:0}
+.sg:hover,.sg.hi{background:var(--surface-2)}
+.sg .nm{font-weight:600;font-size:13.5px}
+.sg .mt{font-size:11.5px;color:var(--ink-3);margin-left:auto}
+
+/* Layout */
+main{max-width:1320px;margin:0 auto;padding:0 24px 60px;display:grid;grid-template-columns:376px 1fr;gap:22px;align-items:start}
+@media(max-width:900px){
+  main{grid-template-columns:1fr;padding:0 16px 40px;gap:16px}
+  .panel{position:static;order:2}
+  section{order:1}
+}
+
+/* Detail panel */
+.panel{position:sticky;top:96px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.detail-empty{padding:26px 22px}
+.detail-empty h3{font-family:"Space Grotesk";font-size:14px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.detail-empty p{font-size:12.5px;color:var(--ink-3);margin-bottom:20px}
+.na-title{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
+.na{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line-2);cursor:pointer}
+.na:hover .na-nm{color:var(--signal)}
+.na-day{font-family:"IBM Plex Mono";font-weight:600;font-size:11px;text-align:center;width:42px;flex:none;color:var(--ink-2);background:var(--surface-2);border-radius:6px;padding:6px 0;line-height:1.25}
+.na-day span{display:block;font-size:9px;color:var(--ink-3);font-weight:500}
+.na-nm{font-weight:600;font-size:13px}
+.na-meta{font-size:11px;color:var(--ink-3);margin-top:1px}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+
+/* Fixture card */
+.fx-head{padding:20px 22px 16px;border-bottom:1px solid var(--line-2);background:linear-gradient(180deg,var(--surface-2),#fff)}
+.fx-berthstrip{height:4px;width:100%}
+.fx-vessel{font-family:"Space Grotesk";font-weight:700;font-size:21px;line-height:1.12;letter-spacing:.2px;margin:2px 0 12px}
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-size:11px;font-weight:600;padding:5px 10px;border-radius:999px;letter-spacing:.03em;display:inline-flex;align-items:center;gap:6px}
+.b-load{background:var(--load-bg);color:var(--load)}
+.b-disch{background:var(--disch-bg);color:var(--disch)}
+.b-berth{background:var(--navy);color:#fff}
+.fx-body{padding:6px 22px 20px}
+.row{display:flex;padding:13px 0;border-bottom:1px solid var(--line-2);gap:14px}
+.row:last-child{border-bottom:0}
+.row .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:96px;flex:none;padding-top:2px}
+.row .v{font-size:13.5px;font-weight:500;color:var(--ink)}
+.row .v.code{font-family:"IBM Plex Mono";font-weight:500;font-size:12.5px}
+.pill-dem{font-family:"IBM Plex Mono";font-weight:600;background:#FBF3DC;color:#8A6D1C;padding:2px 8px;border-radius:6px;font-size:12px}
+.restr{margin:16px 22px 0;background:var(--surface-2);border:1px solid var(--line-2);border-radius:9px;padding:12px 14px}
+.restr .k{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+.restr .v{font-family:"IBM Plex Mono";font-size:11.5px;color:var(--ink-2);white-space:pre-line;line-height:1.55}
+.recap{margin:16px 22px 22px}
+.recap .k{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+.recap pre{font-family:"IBM Plex Mono";font-size:11.5px;color:var(--ink);background:#0F1E2B;color:#CFE3E4;border-radius:9px;padding:14px 15px;white-space:pre-wrap;line-height:1.65;overflow-x:auto}
+
+/* Lineup */
+.lu-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 14px;flex-wrap:wrap;gap:10px}
+.lu-head h2{font-family:"Space Grotesk";font-size:16px;font-weight:600;letter-spacing:.2px}
+.lu-count{font-size:12px;color:var(--ink-3)}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+.chip{border:1px solid var(--line);background:#fff;color:var(--ink-2);font-size:12px;font-weight:500;padding:7px 13px;border-radius:999px;cursor:pointer;font-family:Inter;display:inline-flex;align-items:center;gap:6px;transition:.12s}
+.chip:hover{border-color:var(--ink-3)}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.chip .dot{width:8px;height:8px}
+.sep{width:1px;background:var(--line);margin:2px 4px}
+.datebar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:11px}
+.datebar .dlabel{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+.dateinput{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:11px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
+.dateinput input{border:0;outline:0;background:transparent;font-family:"IBM Plex Mono";font-size:12px;color:var(--ink);cursor:pointer;color-scheme:light}
+.dateinput input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.5}
+.chip.preset.on{background:var(--signal);border-color:var(--signal)}
+.datebar .dclear{border:0;background:transparent;color:var(--signal);font-size:12px;font-weight:600;cursor:pointer;font-family:Inter;padding:6px 4px;display:none}
+.datebar .dclear.on{display:inline}
+
+.daygroup{margin-bottom:22px}
+.dayhdr{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+.dayhdr .dt{font-family:"Space Grotesk";font-weight:600;font-size:13.5px;color:var(--ink)}
+.dayhdr .dow{font-size:11px;color:var(--ink-3);letter-spacing:.08em;text-transform:uppercase}
+.dayhdr .rule{flex:1;height:1px;background:var(--line)}
+.dayhdr .tflag{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--today);padding:3px 8px;border-radius:5px}
+
+.entry{background:#fff;border:1px solid var(--line);border-radius:10px;padding:0;margin-bottom:8px;cursor:pointer;display:flex;overflow:hidden;transition:.12s}
+.entry:hover{border-color:var(--ink-3);box-shadow:var(--shadow);transform:translateY(-1px)}
+.entry.active{border-color:var(--navy);box-shadow:0 0 0 2px rgba(18,50,74,.14)}
+.entry .stripe{width:5px;flex:none}
+.entry .ec{padding:13px 15px;flex:1;min-width:0}
+.entry .er1{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.entry .vn{font-family:"Space Grotesk";font-weight:600;font-size:15px;letter-spacing:.2px}
+.entry .vn.tbn{color:var(--ink-3);font-style:italic}
+.tag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;letter-spacing:.02em}
+.t-load{background:var(--load-bg);color:var(--load)}
+.t-disch{background:var(--disch-bg);color:var(--disch)}
+.t-berth{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);font-family:"IBM Plex Mono"}
+.entry .er2{display:flex;gap:16px;margin-top:7px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.entry .er2 .ci{display:flex;align-items:center;gap:5px}
+.entry .er2 .lbl{color:var(--ink-3);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.entry .er2 .val{font-family:"IBM Plex Mono";font-size:11.5px;font-weight:500}
+.hl{background:#FDF3C6;border-radius:3px;padding:0 2px}
+.empty-state{text-align:center;padding:50px 20px;color:var(--ink-3)}
+.empty-state .em{font-size:15px;font-weight:600;color:var(--ink-2);margin-bottom:5px;font-family:"Space Grotesk"}
+footer{max-width:1320px;margin:0 auto;padding:8px 24px 40px;color:var(--ink-3);font-size:11px;text-align:center}
+
+/* ---- Phone ---- */
+@media(max-width:640px){
+  .hwrap{padding:14px 16px 16px}
+  .brand h1{font-size:15px}
+  .brand .sub{font-size:10px}
+  .mark{width:30px;height:30px;font-size:13px}
+  .clock{display:none}
+  .statbar{gap:0;margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}
+  .stat{background:rgba(255,255,255,.06);border-radius:8px;padding:9px 11px}
+  .stat .n{font-size:19px}
+  .stat .l{font-size:9.5px}
+  .searchwrap{padding:0 16px;margin-top:14px}
+  .searchbox{padding:3px 5px 3px 13px;border-radius:11px}
+  #q{font-size:16px;padding:13px 10px}   /* 16px keeps iOS from zooming on focus */
+  .clearbtn{padding:9px 12px}
+  .suggest{left:16px;right:16px}
+  .lu-head h2{font-size:15px}
+  .filters{gap:6px;margin-bottom:14px}
+  .datebar{gap:6px;margin-bottom:10px}
+  .dateinput{padding:7px 10px}
+  .chip{padding:8px 12px;font-size:12px}   /* larger tap target */
+  .sep{display:none}
+  .entry .stripe{width:6px}
+  .entry .ec{padding:12px 13px}
+  .entry .vn{font-size:14.5px}
+  .entry .er2{gap:5px 14px;margin-top:6px}
+  .fx-vessel{font-size:19px}
+  .row .k{width:78px}
+  .restr,.recap{margin-left:16px;margin-right:16px}
+  .detail-empty{padding:20px 16px}
+  footer{padding:4px 16px 32px}
+}
+@media(max-width:360px){
+  .statbar{grid-template-columns:1fr 1fr}
+  .row{flex-direction:column;gap:3px}
+  .row .k{width:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  *{scroll-behavior:auto!important;transition:none!important}
+  .entry:hover{transform:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="brandrow">
+      <div class="brand">
+        <div class="mark">BL</div>
+        <div>
+          <h1>Berth Line-Up — Terminal Control</h1>
+          <div class="sub">Vessel Schedule &amp; Fixture Desk</div>
+        </div>
+      </div>
+      <div class="clock">
+        <div class="lbl">Generated</div>
+        <div class="d" id="genDate"></div>
+        <div class="t" id="genTime"></div>
+      </div>
+    </div>
+    <div class="statbar" id="statbar"></div>
+  </div>
+</header>
+
+<div class="searchwrap">
+  <div class="searchbox">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="q" type="text" placeholder="Search vessel or CP — e.g. Leo Maris, Gunvor, J5…" autocomplete="off">
+    <button class="clearbtn" id="clear" style="display:none">Clear</button>
+  </div>
+  <div class="suggest" id="suggest"></div>
+</div>
+
+<main>
+  <aside class="panel">
+    <div class="card" id="detail"></div>
+  </aside>
+  <section>
+    <div class="lu-head">
+      <h2>Schedule Line-Up</h2>
+      <span class="lu-count" id="count"></span>
+    </div>
+    <div class="datebar" id="dateBar"></div>
+    <div class="filters" id="berthFilters"></div>
+    <div id="lineup"></div>
+  </section>
+</main>
+<footer>Mock-up dashboard built from your working file · dates &amp; codes shown exactly as entered · click any call to open its fixture card.</footer>
+
+<script>
+const DATA = {"restrictions": {"J2": "Max LOA 185M // Max DWT 39.5KT \nMax Disp 45.8KT // Max Draft 11.3", "J4": "Max LOA 250M // Max DWT 50KT\nMax Disp 80K // Max Draft 12.9", "J5": "Max LOA 280M // Max DWT 80KT\n Max Disp 106K // Max Draft 17.6", "Anchorage": "Anchorage", "J8": "Max LOA 280M // Max DWT 150KT\nMax Disp 210K // Max Draft 17", "J3": "Max LOA 370M // Max DWT 150KT\nMax Disp 210K // Max Draft 16.9"}, "records": [{"vessel": "Raffles Pride", "operation": "Load", "counterparty": "Petron", "laycan": "Petron 19-21 Aug", "cargo": "95R 70KB", "status": "All fast  21/0942 - ETC 22/AM", "demurrage": "", "date": "2026-08-21", "berth": "J2", "raw": "Raffles Pride (Load)\nPetron 19-21 Aug\n95R 70KB\nAll fast  21/0942 - ETC 22/AM"}, {"vessel": "High Transporter", "operation": "Discharge", "counterparty": "TOP", "laycan": "TOP 13-15 Aug", "cargo": "92R 190KB", "status": "All fast  21/0942 - ETC 22/EPM", "demurrage": "", "date": "2026-08-21", "berth": "J5", "raw": "High Transporter (Discharge)\nTOP 13-15 Aug\n92R 190KB\nAll fast  21/0942 - ETC 22/EPM"}, {"vessel": "CYGNET", "operation": "Load", "counterparty": "GUNVOR", "laycan": "GUNVOR 23-25 Aug", "cargo": "95R 100KB Platts", "status": "ETA 23/0800", "demurrage": "18K", "date": "2026-08-23", "berth": "J2", "raw": "CYGNET (Load)\nGUNVOR 23-25 Aug\n95R 100KB Platts\nETA 23/0800 (dem 18K)"}, {"vessel": "PB BOONNADA", "operation": "Load", "counterparty": "Westport", "laycan": "Westport 24-26 Aug", "cargo": "95R 50KB", "status": "ETA 23/0800", "demurrage": "13K", "date": "2026-08-23", "berth": "J5", "raw": "PB BOONNADA (Load)\nWestport 24-26 Aug\n95R 50KB\nETA 23/0800 (dem 13K)"}, {"vessel": "SRI YULIANI", "operation": "Load", "counterparty": "C&D", "laycan": "C&D  22-24 Aug", "cargo": "92R 1,265 MT // 10KB", "status": "ETA 25/1400 > to BL 26", "demurrage": "12K", "date": "2026-08-25", "berth": "J2", "raw": "SRI YULIANI (Load)\nC&D // 22-24 Aug\n92R 1,265 MT // 10KB\nETA 25/1400 > to BL 26 (dem 12K)"}, {"vessel": "LEO MARIS", "operation": "Load", "counterparty": "GUNVOR", "laycan": "25-27 Aug", "cargo": "95R 100KB Platts", "status": "ETA 25/001", "demurrage": "32K", "date": "2026-08-25", "berth": "J4", "raw": "LEO MARIS (Load) // GUNVOR\n25-27 Aug\n95R 100KB Platts\nETA 25/001  (dem 32K)"}, {"vessel": "ETC NEFERTARI", "operation": "Load", "counterparty": "VITOL", "laycan": "VITOL 24-26 Aug", "cargo": "95R 200KB Platts", "status": "ETC NEFERTARI (Load)", "demurrage": "32K", "date": "2026-08-26", "berth": "J4", "raw": "ETC NEFERTARI (Load)\nVITOL 24-26 Aug\n95R 200KB Platts\nETA 26/0001 (Dem 32K)"}, {"vessel": "STELLATA", "operation": "", "counterparty": "FPCC 19-21 Aug", "laycan": "92R 525KB", "cargo": "92R 525KB", "status": "ETA SG 27/PM", "demurrage": "55K", "date": "2026-08-27", "berth": "J5", "raw": "STELLATA // FPCC 19-21 Aug\n92R 525KB\nETA SG 27/PM (dem 55K)"}, {"vessel": "ISLAND EXPRESS", "operation": "Discharge", "counterparty": "TOP + GC", "laycan": "TOP + GC  23-25 Aug", "cargo": "92R 190KB + Ref 15KT", "status": "ETA 28/pm", "demurrage": "30.5K", "date": "2026-08-28", "berth": "J2", "raw": "ISLAND EXPRESS (Discharge)\nTOP + GC // 23-25 Aug\n92R 190KB + Ref 15KT\nETA 28/pm (dem 30.5K)"}, {"vessel": "NOEL", "operation": "Load", "counterparty": "Westport", "laycan": "29-31 Aug", "cargo": "95R 50KB", "status": "ETA ??", "demurrage": "", "date": "2026-08-29", "berth": "J2", "raw": "NOEL (Load) // Westport \n29-31 Aug\n95R 50KB\nETA ??"}, {"vessel": "BTS WINTER", "operation": "Load", "counterparty": "Petron", "laycan": "Petron 29-31 Aug", "cargo": "95R 70KB", "status": "ETA 29/1500", "demurrage": "16K", "date": "2026-08-29", "berth": "J4", "raw": "BTS WINTER (Load)\nPetron 29-31 Aug\n95R 70KB\nETA 29/1500 (dem 16K?)"}, {"vessel": "CAPE BOWEN", "operation": "Load", "counterparty": "VITOL", "laycan": "VITOL 27-29 Aug", "cargo": "95R 100KB Platts", "status": "ETA 29/0001", "demurrage": "33K", "date": "2026-08-29", "berth": "J5", "raw": "CAPE BOWEN (Load)\nVITOL 27-29 Aug\n95R 100KB Platts\nETA 29/0001 (dem 33K)"}, {"vessel": "THERASA", "operation": "Load", "counterparty": "SK", "laycan": "SK  30 Aug - 3 Sep", "cargo": "92R 90KB + 95R 50KB", "status": "ETA ?", "demurrage": "19K", "date": "2026-08-30", "berth": "J2", "raw": "THERASA (Load)\nSK // 30 Aug - 3 Sep\n92R 90KB + 95R 50KB\nETA ? (dem 19K)"}, {"vessel": "LEO MARIS", "operation": "Load", "counterparty": "GUNVOR", "laycan": "27-29 Aug", "cargo": "95R 100KB Platts", "status": "ETA 26/AM", "demurrage": "32K", "date": "2026-08-30", "berth": "J5", "raw": "LEO MARIS (Load) // GUNVOR\n27-29 Aug\n95R 100KB Platts\nETA 26/AM  (dem 32K)"}, {"vessel": "LEO MARIS", "operation": "Load", "counterparty": "GUNVOR", "laycan": "27-29 Aug", "cargo": "95R 100KB Platts", "status": "ETA 28/AM", "demurrage": "32K", "date": "2026-08-31", "berth": "J5", "raw": "LEO MARIS (Load) // GUNVOR\n27-29 Aug\n95R 100KB Platts\nETA 28/AM  (dem 32K)"}, {"vessel": "BTS ECLIPSE", "operation": "Discharge", "counterparty": "", "laycan": "GC  10+2.5KT reformate", "cargo": "GC // 10+2.5KT reformate", "status": "ETA 4-5 Sep", "demurrage": "", "date": "2026-09-04", "berth": "J2", "raw": "BTS ECLIPSE (Discharge)\nGC // 10+2.5KT reformate\nETA 4-5 Sep"}, {"vessel": "TBC", "operation": "Discharge", "counterparty": "TOTAL", "laycan": "TOTAL  DDR 05-10 Sep", "cargo": "NAPHTHA 50KB", "status": "Load jebel ali - Voy 12 days", "demurrage": "", "date": "2026-09-05", "berth": "J2", "raw": "TBC (Discharge)\nTOTAL // DDR 05-10 Sep\nNAPHTHA 50KB \nLoad jebel ali - Voy 12 days"}, {"vessel": "TBN", "operation": "Load", "counterparty": "Mercuria", "laycan": "Mercuria 06-08 Sep", "cargo": "90R 200KB (Indo)", "status": "", "demurrage": "", "date": "2026-09-06", "berth": "J2", "raw": "TBN (Load)\nMercuria 06-08 Sep\n90R 200KB (Indo)"}, {"vessel": "WESTERN CARNATION", "operation": "Discharge", "counterparty": "UNION INTER", "laycan": "UNION INTER  DDR 28 Aug - 05 Sep", "cargo": "MTBE 5KT", "status": "ETA 7-8 Sep bss ETD Zhapu 29 Aug and disch at kuantan on arrival", "demurrage": "", "date": "2026-09-07", "berth": "J2", "raw": "WESTERN CARNATION (Discharge)\nUNION INTER // DDR 28 Aug - 05 Sep\nMTBE 5KT \nETA 7-8 Sep bss ETD Zhapu 29 Aug and disch at kuantan on arrival"}, {"vessel": "CRANE GAIA", "operation": "Discharge", "counterparty": "UNION INTER", "laycan": "UNION INTER  DDR 07-13 Sep", "cargo": "MTBE 4.1KT", "status": "", "demurrage": "", "date": "2026-09-07", "berth": "J4", "raw": "CRANE GAIA (Discharge)\nUNION INTER // DDR 07-13 Sep\nMTBE 4.1KT \nLoad Panjin, China 21-22 Aug"}, {"vessel": "JIAN HANG FENG DA", "operation": "Discharge", "counterparty": "ITOCHU", "laycan": "ITOCHU  DDR 10-14 Sep", "cargo": "MTBE 3KT", "status": "", "demurrage": "", "date": "2026-09-10", "berth": "J2", "raw": "JIAN HANG FENG DA (Discharge)\nITOCHU // DDR 10-14 Sep\nMTBE 3KT"}, {"vessel": "MTM WESTPORT", "operation": "Discharge", "counterparty": "Westport", "laycan": "Westport  DDR 29 Aug - 12 Sep", "cargo": "DMC 83KB/ 14KT", "status": "ETA SG 11-12 Sep bss ETD Nantong 03 Sep", "demurrage": "", "date": "2026-09-11", "berth": "J2", "raw": "MTM WESTPORT  (Discharge)\nWestport // DDR 29 Aug - 12 Sep\nDMC 83KB/ 14KT\nETA SG 11-12 Sep bss ETD Nantong 03 Sep"}, {"vessel": "TBN", "operation": "Load", "counterparty": "GUNVOR", "laycan": "11-13 Sep", "cargo": "95R 100KB Platts", "status": "", "demurrage": "", "date": "2026-09-11", "berth": "J4", "raw": "TBN (Load) // GUNVOR\n11-13 Sep\n95R 100KB Platts"}, {"vessel": "TBN", "operation": "Load", "counterparty": "GUNVOR", "laycan": "11-13 Sep", "cargo": "95R 100KB Platts", "status": "", "demurrage": "", "date": "2026-09-12", "berth": "J4", "raw": "TBN (Load) // GUNVOR\n11-13 Sep\n95R 100KB Platts"}, {"vessel": "TBN", "operation": "Discharge", "counterparty": "TOP 92R 190KB", "laycan": "TOP 92R 190KB 12-14 Sep", "cargo": "TOP 92R 190KB //12-14 Sep", "status": "ETA 15-16 Sep", "demurrage": "", "date": "2026-09-15", "berth": "J2", "raw": "TBN (Discharge)\nTOP 92R 190KB //12-14 Sep\nETA 15-16 Sep"}, {"vessel": "TBN", "operation": "Load", "counterparty": "Petron", "laycan": "Petron 15-21 Sep", "cargo": "95R 70KB", "status": "All fast  21/0942 - ETC 22/AM", "demurrage": "", "date": "2026-09-15", "berth": "J4", "raw": "TBN (Load)\nPetron 15-21 Sep\n95R 70KB\nAll fast  21/0942 - ETC 22/AM"}, {"vessel": "TBN", "operation": "Discharge", "counterparty": "PETCO", "laycan": "PETCO  15-23 Sep", "cargo": "Kerteh Naph 50KB", "status": "PETCO // 15-23 Sep", "demurrage": "", "date": "2026-09-15", "berth": "J5", "raw": "TBN (Discharge)\nPETCO // 15-23 Sep\nKerteh Naph 50KB"}, {"vessel": "THERESA GENESIS", "operation": "Discharge", "counterparty": "Westport", "laycan": "Westport  DDR 12 Aug - 23 Sep", "cargo": "MEAC 12KT", "status": "ETA SG 19 bss ETD Yangzhou 11", "demurrage": "", "date": "2026-09-19", "berth": "J2", "raw": "THERESA GENESIS (Discharge)\nWestport // DDR 12 Aug - 23 Sep\nMEAC 12KT\nETA SG 19 bss ETD Yangzhou 11"}, {"vessel": "TBN", "operation": "Load", "counterparty": "Westport", "laycan": "20-30 Sep", "cargo": "95R 100KB", "status": "", "demurrage": "", "date": "2026-09-20", "berth": "J2", "raw": "TBN (Load) // Westport \n20-30 Sep\n95R 100KB"}, {"vessel": "TBN", "operation": "Load", "counterparty": "Petron", "laycan": "Petron 20-26 Sep", "cargo": "95R 70KB", "status": "", "demurrage": "", "date": "2026-09-20", "berth": "J4", "raw": "TBN (Load)\nPetron 20-26 Sep\n95R 70KB"}, {"vessel": "TBN", "operation": "Load", "counterparty": "TOTAL", "laycan": "TOTAL 20-22 Sep", "cargo": "95R (S.AF spec) 300KB", "status": "ETA ??", "demurrage": "", "date": "2026-09-20", "berth": "J5", "raw": "TBN (Load)\nTOTAL 20-22 Sep\n95R (S.AF spec) 300KB\nETA ??"}, {"vessel": "TBN", "operation": "Discharge", "counterparty": "TOP 92R 190KB", "laycan": "TOP 92R 190KB 12-14 Sep", "cargo": "TOP 92R 190KB //12-14 Sep", "status": "ETA 25-26 Sep", "demurrage": "", "date": "2026-09-25", "berth": "J2", "raw": "TBN (Discharge)\nTOP 92R 190KB //12-14 Sep\nETA 25-26 Sep"}]};
+const RECORDS = DATA.records.map((r,i)=>({...r,id:i}));
+const RESTR = DATA.restrictions;
+const BERTHS = ["J2","J3","J4","J5","J8","Anchorage"];
+const BCOLOR = {J2:"var(--j2)",J3:"var(--j3)",J4:"var(--j4)",J5:"var(--j5)",J8:"var(--j8)",Anchorage:"var(--anchorage)"};
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+function pd(s){const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);}
+function fmt(dt){return dt.getDate()+" "+MON[dt.getMonth()]+" "+dt.getFullYear();}
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+let state={q:"",berth:"ALL",op:"ALL",from:"",to:"",preset:"all",selected:null,hi:-1};
+
+const DS=RECORDS.map(r=>r.date).sort();
+const DMIN=DS[0], DMAX=DS[DS.length-1];
+
+/* header */
+const GEN=new Date();
+document.getElementById("genDate").textContent = fmt(GEN);
+document.getElementById("genTime").textContent =
+  String(GEN.getHours()).padStart(2,"0")+":"+String(GEN.getMinutes()).padStart(2,"0")+" "+
+  (Intl.DateTimeFormat().resolvedOptions().timeZone||"local");
+const ds=DS;
+const loads=RECORDS.filter(r=>r.operation==="Load").length;
+const disch=RECORDS.filter(r=>r.operation==="Discharge").length;
+const upcoming=RECORDS.filter(r=>pd(r.date)>=TODAY).length;
+document.getElementById("statbar").innerHTML=`
+  <div class="stat"><span class="n">${RECORDS.length}</span><span class="l">Total calls</span></div>
+  <div class="stat"><span class="n tl">${loads}</span><span class="l">Loading</span></div>
+  <div class="stat"><span class="n td">${disch}</span><span class="l">Discharging</span></div>
+  <div class="stat"><span class="n">${upcoming}</span><span class="l">Still upcoming</span></div>`;
+
+/* berth filters */
+const bf=document.getElementById("berthFilters");
+function renderFilters(){
+  let h=`<div class="chip ${state.berth==='ALL'?'on':''}" data-b="ALL">All berths</div>`;
+  BERTHS.forEach(b=>{h+=`<div class="chip ${state.berth===b?'on':''}" data-b="${b}"><span class="dot" style="background:${BCOLOR[b]}"></span>${b}</div>`;});
+  h+=`<div class="sep"></div>
+    <div class="chip ${state.op==='ALL'?'on':''}" data-o="ALL">All ops</div>
+    <div class="chip ${state.op==='Load'?'on':''}" data-o="Load"><span class="dot" style="background:var(--load)"></span>Load</div>
+    <div class="chip ${state.op==='Discharge'?'on':''}" data-o="Discharge"><span class="dot" style="background:var(--disch)"></span>Discharge</div>`;
+  bf.innerHTML=h;
+  bf.querySelectorAll("[data-b]").forEach(el=>el.onclick=()=>{state.berth=el.dataset.b;render();});
+  bf.querySelectorAll("[data-o]").forEach(el=>el.onclick=()=>{state.op=el.dataset.o;render();});
+}
+
+function matchQ(r,q){
+  if(!q)return true;q=q.toLowerCase();
+  return (r.vessel+" "+r.counterparty+" "+r.berth+" "+r.cargo+" "+r.raw).toLowerCase().includes(q);
+}
+
+/* date filter */
+const db=document.getElementById("dateBar");
+function isoOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function isoShift(iso,days){const d=pd(iso);d.setDate(d.getDate()+days);return isoOf(d);}
+const TODAY_ISO=isoOf(TODAY);
+function applyPreset(p){
+  state.preset=p;
+  if(p==="all"){state.from="";state.to="";}
+  else if(p==="today"){state.from=TODAY_ISO;state.to=TODAY_ISO;}
+  else if(p==="7"){state.from=TODAY_ISO;state.to=isoShift(TODAY_ISO,6);}
+  else if(p==="30"){state.from=TODAY_ISO;state.to=isoShift(TODAY_ISO,29);}
+  render();
+}
+function renderDateBar(){
+  const active=!!(state.from||state.to);
+  db.innerHTML=`<span class="dlabel">Dates</span>
+    <div class="chip preset ${state.preset==='all'?'on':''}" data-p="all">All</div>
+    <div class="chip preset ${state.preset==='today'?'on':''}" data-p="today">Today</div>
+    <div class="chip preset ${state.preset==='7'?'on':''}" data-p="7">Next 7 days</div>
+    <div class="chip preset ${state.preset==='30'?'on':''}" data-p="30">Next 30 days</div>
+    <label class="dateinput">From <input type="date" id="fromD" min="${DMIN}" max="${DMAX}" value="${state.from}"></label>
+    <label class="dateinput">To <input type="date" id="toD" min="${DMIN}" max="${DMAX}" value="${state.to}"></label>
+    <button class="dclear ${active?'on':''}" id="dClear">Reset dates</button>`;
+  db.querySelectorAll("[data-p]").forEach(el=>el.onclick=()=>applyPreset(el.dataset.p));
+  document.getElementById("fromD").onchange=e=>{state.from=e.target.value;state.preset="custom";render();};
+  document.getElementById("toD").onchange=e=>{state.to=e.target.value;state.preset="custom";render();};
+  const dc=document.getElementById("dClear");if(dc)dc.onclick=()=>applyPreset("all");
+}
+
+function filtered(){
+  return RECORDS.filter(r=>matchQ(r,state.q)
+    && (state.berth==="ALL"||r.berth===state.berth)
+    && (state.op==="ALL"||r.operation===state.op)
+    && (!state.from||r.date>=state.from)
+    && (!state.to||r.date<=state.to));
+}
+function mark(t){
+  if(!state.q)return esc(t);
+  const q=state.q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  return esc(t).replace(new RegExp("("+q+")","ig"),'<span class="hl">$1</span>');
+}
+
+/* lineup */
+function render(){
+  renderFilters();
+  renderDateBar();
+  const rows=filtered().sort((a,b)=>a.date.localeCompare(b.date)||a.berth.localeCompare(b.berth));
+  document.getElementById("count").textContent = rows.length+" of "+RECORDS.length+" calls";
+  const lu=document.getElementById("lineup");
+  if(!rows.length){lu.innerHTML=`<div class="empty-state"><div class="em">No matching calls</div>Try a different vessel, CP or berth.</div>`;renderDetail();return;}
+  const groups={};rows.forEach(r=>{(groups[r.date]=groups[r.date]||[]).push(r);});
+  let h="";
+  Object.keys(groups).sort().forEach(dt=>{
+    const d=pd(dt),isToday=d.getTime()===TODAY.getTime();
+    h+=`<div class="daygroup"><div class="dayhdr">
+        <span class="dt">${d.getDate()} ${MON[d.getMonth()]}</span>
+        <span class="dow">${DOW[d.getDay()]}</span>
+        ${isToday?'<span class="tflag">Today</span>':''}
+        <span class="rule"></span></div>`;
+    groups[dt].forEach(r=>{
+      const isTbn=/^(TBN|TBC)/i.test(r.vessel);
+      const opTag=r.operation==="Load"?'<span class="tag t-load">Load</span>':r.operation==="Discharge"?'<span class="tag t-disch">Discharge</span>':'';
+      h+=`<div class="entry ${state.selected===r.id?'active':''}" data-id="${r.id}">
+        <div class="stripe" style="background:${BCOLOR[r.berth]}"></div>
+        <div class="ec">
+          <div class="er1">
+            <span class="vn ${isTbn?'tbn':''}">${mark(r.vessel)}</span>
+            ${opTag}
+            <span class="tag t-berth">${r.berth}</span>
+          </div>
+          <div class="er2">
+            ${r.counterparty?`<div class="ci"><span class="lbl">CP</span><span class="val">${mark(r.counterparty)}</span></div>`:''}
+            ${r.cargo?`<div class="ci"><span class="lbl">Cargo</span><span class="val">${mark(r.cargo)}</span></div>`:''}
+            ${r.status?`<div class="ci"><span class="lbl">ETA</span><span class="val">${mark(r.status)}</span></div>`:''}
+          </div>
+        </div></div>`;
+    });
+    h+=`</div>`;
+  });
+  lu.innerHTML=h;
+  lu.querySelectorAll(".entry").forEach(el=>el.onclick=()=>{state.selected=+el.dataset.id;render();if(window.matchMedia("(max-width:900px)").matches){document.querySelector(".panel").scrollIntoView({behavior:"smooth",block:"start"});}});
+  renderDetail();
+}
+
+function renderDetail(){
+  const box=document.getElementById("detail");
+  const r=RECORDS.find(x=>x.id===state.selected);
+  if(!r){
+    const next=RECORDS.filter(x=>pd(x.date)>=TODAY).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+    box.innerHTML=`<div class="detail-empty">
+      <h3>No vessel selected</h3>
+      <p>Search a vessel or CP above, or pick a call from the line-up. Its full fixture detail shows here.</p>
+      <div class="na-title">Next arrivals</div>
+      ${next.map(x=>{const d=pd(x.date);return `<div class="na" data-id="${x.id}">
+        <div class="na-day">${d.getDate()}<span>${MON[d.getMonth()]}</span></div>
+        <span class="dot" style="background:${BCOLOR[x.berth]}"></span>
+        <div><div class="na-nm">${esc(x.vessel)}</div><div class="na-meta">${x.berth} · ${x.operation||'—'}${x.counterparty?' · '+esc(x.counterparty):''}</div></div>
+      </div>`;}).join("")}
+    </div>`;
+    box.querySelectorAll(".na").forEach(el=>el.onclick=()=>{state.selected=+el.dataset.id;render();});
+    return;
+  }
+  const d=pd(r.date);
+  const opBadge=r.operation==="Load"?'<span class="badge b-load">● Loading</span>':r.operation==="Discharge"?'<span class="badge b-disch">● Discharging</span>':'';
+  box.innerHTML=`
+    <div class="fx-berthstrip" style="background:${BCOLOR[r.berth]}"></div>
+    <div class="fx-head">
+      <div class="badges" style="margin-bottom:10px">${opBadge}<span class="badge b-berth">Berth ${r.berth}</span></div>
+      <div class="fx-vessel">${esc(r.vessel)}</div>
+      <div class="mono" style="font-size:12px;color:var(--ink-3)">Scheduled ${fmt(d)} · ${DOW[d.getDay()]}</div>
+    </div>
+    <div class="fx-body">
+      ${r.counterparty?rowHTML("CP",r.counterparty):''}
+      ${r.laycan?rowHTML("Laycan",r.laycan,true):''}
+      ${r.cargo?rowHTML("Cargo",r.cargo,true):''}
+      ${r.status?rowHTML("ETA / status",r.status,true):''}
+      ${r.demurrage?`<div class="row"><div class="k">Demurrage</div><div class="v"><span class="pill-dem">${esc(r.demurrage)}</span></div></div>`:''}
+    </div>
+    ${RESTR[r.berth]?`<div class="restr"><div class="k">Berth ${r.berth} restrictions</div><div class="v">${esc(RESTR[r.berth])}</div></div>`:''}
+    <div class="recap"><div class="k">Original note</div><pre>${esc(r.raw)}</pre></div>`;
+}
+function rowHTML(k,v,code){return `<div class="row"><div class="k">${k}</div><div class="v ${code?'code':''}">${esc(v)}</div></div>`;}
+
+/* search + suggest */
+const q=document.getElementById("q"),sg=document.getElementById("suggest"),clr=document.getElementById("clear");
+function suggestions(){
+  const val=q.value.trim().toLowerCase();
+  if(!val){sg.classList.remove("on");return;}
+  const seen=new Set(),out=[];
+  RECORDS.forEach(r=>{
+    [[r.vessel,"vessel"],[r.counterparty,"CP"]].forEach(([nm,ty])=>{
+      if(nm&&nm.toLowerCase().includes(val)&&!seen.has(ty+nm)){seen.add(ty+nm);out.push({nm,ty});}
+    });
+  });
+  if(!out.length){sg.classList.remove("on");return;}
+  state.hi=-1;
+  sg.innerHTML=out.slice(0,7).map((o,i)=>`<div class="sg" data-v="${esc(o.nm)}" data-i="${i}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round">${o.ty==='vessel'?'<path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/><path d="M19.5 10 12 3 4.5 10"/><path d="M12 3v18"/>':'<circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/>'}</svg>
+    <span class="nm">${esc(o.nm)}</span><span class="mt">${o.ty}</span></div>`).join("");
+  sg.classList.add("on");
+  sg.querySelectorAll(".sg").forEach(el=>el.onclick=()=>{q.value=el.dataset.v;doSearch();sg.classList.remove("on");});
+}
+function doSearch(){state.q=q.value.trim();state.selected=null;clr.style.display=state.q?"block":"none";render();}
+q.addEventListener("input",()=>{doSearch();suggestions();});
+q.addEventListener("keydown",e=>{
+  const items=[...sg.querySelectorAll(".sg")];
+  if(e.key==="ArrowDown"){e.preventDefault();state.hi=Math.min(state.hi+1,items.length-1);}
+  else if(e.key==="ArrowUp"){e.preventDefault();state.hi=Math.max(state.hi-1,0);}
+  else if(e.key==="Enter"){if(state.hi>=0&&items[state.hi]){q.value=items[state.hi].dataset.v;doSearch();sg.classList.remove("on");}else sg.classList.remove("on");return;}
+  else if(e.key==="Escape"){sg.classList.remove("on");return;}
+  items.forEach((el,i)=>el.classList.toggle("hi",i===state.hi));
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".searchwrap"))sg.classList.remove("on");});
+clr.onclick=()=>{q.value="";doSearch();sg.classList.remove("on");q.focus();};
+
+render();
+</script>
+</body>
+</html>
